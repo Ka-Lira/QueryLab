@@ -1,25 +1,31 @@
-import { motion } from "framer-motion";
+import { Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
+/* home */
+import Home from "./pages/Home";
 
 function App() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4">
-      <motion.h1 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-5xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent"
-      >
-        QueryLab
-      </motion.h1>
-      <motion.p 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="text-slate-400 text-xl"
-      >
-        Plataforma Interactiva de Bases de Datos SQL
-      </motion.p>
-    </div>
-  )
-}
+    <div className="min-h-screen transition-colors duration-300 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
+      <Navbar />
 
-export default App
+      {/* contenido */}
+      <main className="pt-16">
+        <Routes>
+          {/* se estemos en '/', muestre home-page */}
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
+
+
+
+        </Routes>
+      </main>
+    </div>
+  );
+};
+
+export default App;
