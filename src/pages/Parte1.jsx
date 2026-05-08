@@ -1,10 +1,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../lib/supabaseClient'
+
 import modeloER from '../assets/mapa_simples.svg';
+import mapaCompleto from '../assets/mapa_completo.svg';
+
 import { useState, useEffect, useRef } from 'react';
 
 const Parte1 = () => {
 
-    const [modalAberto, setModalAberto] = useState(false);
+    const [modalConfig, setModalConfig] = useState({ aberto: false, imagem: null });
     /* criar accordion para enunciado original */
     const [enunciadoAberto, setEnunciadoAberto] = useState(false);
 
@@ -40,7 +44,7 @@ const Parte1 = () => {
     /* funcao para poder resetar o zoom ao fechar */
     const containerRef = useRef(null);
     const fecharModal = () => {
-        setModalAberto(false);
+        setModalConfig({ aberto: false, imagem: null });
         setZoom(1);
         setPosicao({ x: 0, y: 0 });
     };
@@ -56,7 +60,7 @@ const Parte1 = () => {
             setZoom(prev => Math.min(Math.max(prev - e.deltaY * 0.001, 1), 4));
         };
 
-        if (modalAberto) {
+        if (modalConfig.aberto) {
             el.addEventListener('wheel', onWheel, { passive: false });
 
             document.body.style.overflow = 'hidden';
@@ -71,7 +75,42 @@ const Parte1 = () => {
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
         };
-    }, [modalAberto]);
+    }, [modalConfig.aberto]);
+
+
+    /* creacion de datos interativos */
+    const [exemplares, setExemplares] = useState([]);
+    const [userRole, setUserRole] = useState('usuario');
+    const [loading, setLoading] = useState(true);
+
+    /* puxar datos de BBDD */
+    useEffect(() => {
+            const fetchDados = async () => {
+
+            /* ejemplares */
+            const { data: dataEx, error: errorEx } = await supabase
+                .from('exemplares')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (!errorEx) setExemplares(dataEx);
+
+            /* usuario actual */
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: perfil } = await supabase
+                    .from('perfis')
+                    .select('role')
+                    .eq('id', user.id)
+                    .single();
+                if (perfil) setUserRole(perfil.role);
+            }
+            setLoading(false);
+        };
+
+        fetchDados();
+
+    }, []);
 
     return (
         <>
@@ -162,7 +201,7 @@ const Parte1 = () => {
                                 src={modeloER}
                                 alt='Modelo Entidad Relación'
                                 className='rounded-2xl w-full h-auto shadow-sm'
-                                onClick={() => setModalAberto(true)}
+                                onClick={() => setModalConfig({ aberto: true, imagem: modeloER })}
                             />
                         </div>
                     </motion.div>
@@ -212,10 +251,137 @@ const Parte1 = () => {
                         
                     </div>
                 </motion.div>
-            </div>
+
+                {/* separador para a segunda etapa do trabalho */}
+                <div className='relative py-20 flex flex-col items-center'>
+                    <div className='absolute inset-0 flex items-center' aria-hidden="true">
+                        <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
+                    </div>
+
+                    <div className="relative bg-slate-50 dark:bg-slate-900 px-6">
+                        <span className="text-sm font-bold tracking-widest uppercase text-slate-400">
+                            "Si haces solo lo mínimo, serás mediocre para siempre"
+                        </span>
+                    </div>
+
+                    <motion.h2
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        className="mt-8 text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent italic"
+                    >
+                        Haciendo más que lo necesario.
+                    </motion.h2>
+                </div>
+
+                <div className='grid grid-cols-1 gap-8 mb-20'>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        className='bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700'
+                    >
+                        <div className='flex flex-col md:flex-row justify-between items-center mb-8 gap-4'>
+                            <div>
+                                <h3 className='text-2xl font-bold text-slate-800 dark:text-white'>
+                                    Mapa Relacional Completo
+                                </h3>
+                                <p className="text-slate-500 text-sm">
+                                    Versión extendida con todas las entidades y atributos adicionales.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setModalConfig({ aberto: true, imagem: mapaCompleto })}
+                                className='px-6 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-full font-bold transition-all flex items-center gap-2'
+                            >
+                                🔍 Expandir Mapa
+                            </button>
+                        </div>
+
+                        <div 
+                            className='relative rounded-2xl bg-slate-900 border-4 border-slate-900 overflow-hidden group cursor-pointer'
+                            onClick={() => setModalConfig({ aberto: true, imagem: mapaCompleto })}
+                        >
+                            <img 
+                                src={mapaCompleto}
+                                alt="Modelo ER Completo"
+                                className='w-full h-auto opacity-90 group-hover:opacity-100 transition-opacity'
+                            />
+
+                            <div className='absolute inset-0 bg-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center'>
+                                <span className='text-white font-bold bg-cyan-500 px-4 py-2 rounded-full shadow-lg'>
+                                    Clic para analizar detalles
+                                </span>
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        className='mt-20'
+                    >
+                        <div className="flex justify-between items-end mb-10">
+                            <div>
+                                <h2 className="text-3xl font-bold italic">
+                                    Exploración de Campo
+                                </h2>
+                                <p className="text-slate-500 mt-2">
+                                    Registros reales sincronizados con la base de datos.
+                                </p>
+                            </div>
+
+                            {/* botton solo para investigadores/admins */}
+                            {(userRole === 'investigador' || userRole === 'admin') && (
+                                <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2">
+                                    <span>+</span> Registrar Nuevo Ejemplar
+                                </button>
+                            )}
+                            
+                        </div>
+
+                        {exemplares.length === 0 ? (
+                            <div className='bg-slate-100 dark:bg-slate-800/50 rounded-3xl p-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700'>
+                                <p className="text-slate-400 italic">
+                                    No hay registros aún. Sé el primero en contribuir.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {exemplares.map((ex) => (
+                                    <motion.div
+                                        key={ex.id_ejemplar}
+                                        whileHover={{ y: -5 }}
+                                        className='bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm'
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className="px-3 py-1 bg-cyan-100 dark:bg-cyan-500/20 text-cyan-500 text-xs font-bold rounded-full uppercase">
+                                                {ex.tipo}
+                                            </span>
+                                            <span className="text-slate-400 text-xs">
+                                                {new Date(ex.fecha_captura).toLocaleDateString()}
+                                            </span>
+                                        </div>
+
+                                        <h4 className='text-xl font-bold mb-1'>
+                                            {ex.nome_comum}
+                                        </h4>
+
+                                        <p className='text-sm italic text-slate-500 mb-4'>
+                                            {ex.nome_cientifico || 'Specie ignota'}
+                                        </p>
+
+                                        <div className='flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400'>
+                                            <span>📍</span> {ex.localidade}, {ex.provincia}
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                </div>
+            </div> {/* div principal */}
 
             <AnimatePresence>
-                {modalAberto && (
+                {modalConfig.aberto && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -252,7 +418,7 @@ const Parte1 = () => {
                             ref={containerRef}
                         >
                             <motion.img
-                                src={modeloER}
+                                src={modalConfig.imagem}
                                 alt="Modelo Entidad Relación"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
