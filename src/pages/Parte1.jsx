@@ -6,7 +6,19 @@ import mapaCompleto from '../assets/mapa_completo.svg';
 
 import { useState, useEffect, useRef } from 'react';
 
+import GestionAsignarEspecie from '../components/GestionAsignarEspecie';
+import GestionLaboratorios from '../components/GestionLaboratorios';
+import MenuGestion from '../components/MenuGestion';
+import GestionEspecies from '../components/GestionEspecies';
+import RegistroMariposas from '../components/RegistroMariposas';
+
 const Parte1 = () => {
+    /* aba gestionar especie */
+    const [mostrarAsignarEspecie, setMostrarAsignarEspecie] = useState(false);
+    /* button para especies */
+    const [mostrarEspecies, setMostrarEspecies] = useState(false);
+    /* button gestionar laboratorios */
+    const [mostrarGestionLaboratorios, setMostrarGestionLaboratorios] = useState(false);
 
     const [modalConfig, setModalConfig] = useState({ aberto: false, imagem: null });
     /* criar accordion para enunciado original */
@@ -18,6 +30,10 @@ const Parte1 = () => {
     const [arrastando, setArrastando] = useState(false);
     const [origem, setOrigem] = useState({ x: 0, y: 0 });
     const [moveu, setMoveu] = useState(false);
+
+    /* importar página de registro */
+    const [mostrarFormulario, setMostrarFormulario] = useState(false);
+    /* FIM - importar página de registro */
 
     const handleZoomClick = (e) => {
         e.stopPropagation();
@@ -84,32 +100,57 @@ const Parte1 = () => {
     const [loading, setLoading] = useState(true);
 
     /* puxar datos de BBDD */
+    const fetchDados = async () => {
+        setLoading(true);
+
+        const { data: dataEx, error: errorEx } = await supabase
+        .from('ejemplares')
+        .select(`
+            id_ejemplar,
+            fecha_captura,
+            tamano,
+            especies (
+                nombre_comun,
+                nombre_cientifico
+            ),
+            localizaciones (
+                description,
+                provincia,
+                pais
+            ),
+            coleccionables (
+                id_ejemplar
+            ),
+            investigaciones (
+                id_investigacion
+            )            
+        `)
+        .order('fecha_captura', { ascending: false });
+
+        if (errorEx) {
+            console.error('Error cargando ejemplares: ', errorEx);
+            setExemplares([]);
+        } else {
+            console.log('Ejemplares cargados:', dataEx);
+            setExemplares(dataEx || []);
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+            const { data: perfil } = await supabase
+                .from('perfis')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+            if (perfil) setUserRole(perfil.role);
+        }
+
+        setLoading(false);
+    };
+
     useEffect(() => {
-            const fetchDados = async () => {
-
-            /* ejemplares */
-            const { data: dataEx, error: errorEx } = await supabase
-                .from('exemplares')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (!errorEx) setExemplares(dataEx);
-
-            /* usuario actual */
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: perfil } = await supabase
-                    .from('perfis')
-                    .select('role')
-                    .eq('id', user.id)
-                    .single();
-                if (perfil) setUserRole(perfil.role);
-            }
-            setLoading(false);
-        };
-
         fetchDados();
-
     }, []);
 
     return (
@@ -329,16 +370,38 @@ const Parte1 = () => {
                                 </p>
                             </div>
 
-                            {/* botton solo para investigadores/admins */}
+                            {/* 
+                                botton solo para investigadores/admins 
+                                contenedor de botones con flex-row
+                            */}
                             {(userRole === 'investigador' || userRole === 'admin') && (
-                                <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2">
-                                    <span>+</span> Registrar Nuevo Ejemplar
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2"
+                                        onClick={() => setMostrarFormulario(true)}
+                                    >
+                                        <span>+</span> Registrar Nuevo Ejemplar
+                                    </button>
+
+                                    {/* Menú en cascada */}
+                                    <MenuGestion 
+                                        onManageEspecies={() => setMostrarEspecies(true)}
+                                        onManageLaboratorios={() => setMostrarGestionLaboratorios(true)}
+                                        onManageAsignarEspecie={() => setMostrarAsignarEspecie(true)}
+                                    />
+
+                                </div>
                             )}
                             
                         </div>
 
-                        {exemplares.length === 0 ? (
+                        {loading ? (
+                            <div className='bg-slate-100 dark:bg-slate-800/50 rounded-3xl p-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700'>
+                                <p className="text-slate-400 italic">
+                                    Cargando registros...
+                                </p>
+                            </div>
+                        ) : exemplares.length === 0 ? (
                             <div className='bg-slate-100 dark:bg-slate-800/50 rounded-3xl p-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700'>
                                 <p className="text-slate-400 italic">
                                     No hay registros aún. Sé el primero en contribuir.
@@ -346,7 +409,23 @@ const Parte1 = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {exemplares.map((ex) => (
+                                {exemplares.map((ex) => {
+
+                                    const tieneInvestigacion = Array.isArray(ex.investigaciones)
+                                        ? ex.investigaciones.length > 0
+                                        : !!ex.investigaciones?.id_investigacion;
+                                    
+                                    const tieneColeccion = Array.isArray(ex.coleccionables)
+                                        ? ex.coleccionables.length > 0
+                                        : !!ex.coleccionables?.id_ejemplar;
+
+                                    const tipo = tieneInvestigacion
+                                        ? 'Investigación'
+                                        : tieneColeccion
+                                            ? 'Colección'
+                                            : 'Observación';
+                                    return (
+
                                     <motion.div
                                         key={ex.id_ejemplar}
                                         whileHover={{ y: -5 }}
@@ -354,7 +433,7 @@ const Parte1 = () => {
                                     >
                                         <div className="flex justify-between items-start mb-4">
                                             <span className="px-3 py-1 bg-cyan-100 dark:bg-cyan-500/20 text-cyan-500 text-xs font-bold rounded-full uppercase">
-                                                {ex.tipo}
+                                                {tipo}
                                             </span>
                                             <span className="text-slate-400 text-xs">
                                                 {new Date(ex.fecha_captura).toLocaleDateString()}
@@ -362,18 +441,19 @@ const Parte1 = () => {
                                         </div>
 
                                         <h4 className='text-xl font-bold mb-1'>
-                                            {ex.nome_comum}
+                                            {ex.especies?.nombre_comun || 'Especie no identificada'}
                                         </h4>
 
                                         <p className='text-sm italic text-slate-500 mb-4'>
-                                            {ex.nome_cientifico || 'Specie ignota'}
+                                            {ex.especies?.nombre_cientifico || 'Species ignota'}
                                         </p>
 
                                         <div className='flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400'>
-                                            <span>📍</span> {ex.localidade}, {ex.provincia}
+                                            <span>📍</span> {ex.localizaciones?.description || 'Ubicación no especificada'}, {ex.localizaciones?.provincia || 'Sin provincia'}
                                         </div>
                                     </motion.div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </motion.div>
@@ -441,6 +521,43 @@ const Parte1 = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* formulário cadastro mariposas */}
+            <AnimatePresence>
+                {mostrarFormulario && (
+                    <RegistroMariposas
+                        onClose={() => setMostrarFormulario(false)}
+                        onSuccess={() => {
+                            setMostrarFormulario(false);
+                            fetchDados();
+                        }}
+                    />
+                )}
+                {mostrarEspecies && <GestionEspecies onClose={() => setMostrarEspecies(false)} />}
+            </AnimatePresence>
+            {/* FIM - formulário cadastro mariposas */}
+
+            {/* gestion laboratorios */}
+            <AnimatePresence>
+                {mostrarGestionLaboratorios && (
+                    <GestionLaboratorios
+                        onClose={() => setMostrarGestionLaboratorios(false)}
+                        userRole={userRole}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* gestion especies */}
+            <AnimatePresence>
+                {mostrarAsignarEspecie && (
+                    <GestionAsignarEspecie 
+                        onClose={() => setMostrarAsignarEspecie(false)} 
+                        userRole={userRole} 
+                    />
+                )}
+            </AnimatePresence>
+           
+            
         </>
     );
 };
